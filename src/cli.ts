@@ -6,7 +6,6 @@ import { resolve } from "node:path";
 import { Command, Option } from "commander";
 import ora, { type Ora } from "ora";
 import packageJson from "../package.json" with { type: "json" };
-import { disposeCliTelemetryService } from "./cline-sdk/cline-telemetry-service.js";
 import { registerHooksCommand } from "./commands/hooks";
 import { registerTaskCommand } from "./commands/task";
 import { loadGlobalRuntimeConfig, loadRuntimeConfig } from "./config/runtime-config";
@@ -619,7 +618,6 @@ async function runMainCommand(options: CliOptions, shouldAutoOpenBrowser: boolea
 		await runtime.shutdown({
 			skipSessionCleanup: options.skipShutdownCleanup,
 		});
-		await disposeCliTelemetryService().catch(() => {});
 	};
 
 	installGracefulShutdownHandlers({
@@ -741,14 +739,14 @@ async function run(): Promise<void> {
 	const program = createProgram(argv);
 	await program.parseAsync(argv, { from: "user" });
 	if (!shouldAutoOpenBrowserTabForInvocation(argv)) {
-		await Promise.allSettled([disposeCliTelemetryService(), flushNodeTelemetry()]);
+		await Promise.allSettled([flushNodeTelemetry()]);
 		process.exit(process.exitCode ?? 0);
 	}
 }
 
 void run().catch(async (error) => {
 	captureNodeException(error, { area: "startup" });
-	await Promise.allSettled([disposeCliTelemetryService(), flushNodeTelemetry()]);
+	await Promise.allSettled([flushNodeTelemetry()]);
 	const message = error instanceof Error ? error.message : String(error);
 	console.error(`Failed to start Kanban: ${message}`);
 	process.exit(1);

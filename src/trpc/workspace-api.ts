@@ -1,11 +1,22 @@
 import { TRPCError } from "@trpc/server";
-import type { ClineTaskSessionService } from "../cline-sdk/cline-task-session-service";
 import type {
+	RuntimeCreateManualCheckpointRequest,
+	RuntimeCreateManualCheckpointResponse,
+	RuntimeDeleteManualCheckpointRequest,
+	RuntimeDeleteManualCheckpointResponse,
+	RuntimeGetManualWorkspaceChangesRequest,
 	RuntimeGitCheckoutResponse,
 	RuntimeGitDiscardResponse,
 	RuntimeGitSummaryResponse,
 	RuntimeGitSyncAction,
 	RuntimeGitSyncResponse,
+	RuntimeListManualCheckpointsRequest,
+	RuntimeListManualCheckpointsResponse,
+	RuntimeManualWorkspaceChanges,
+	RuntimeRestoreManualCheckpointRequest,
+	RuntimeRestoreManualCheckpointResponse,
+	RuntimeTakeManualSnapshotRequest,
+	RuntimeTakeManualSnapshotResponse,
 	RuntimeTaskSessionSummary,
 	RuntimeWorkspaceChangesMode,
 	RuntimeWorkspaceFileSearchResponse,
@@ -26,6 +37,8 @@ import {
 } from "../workspace/get-workspace-changes";
 import { getCommitDiff, getGitLog, getGitRefs } from "../workspace/git-history";
 import { discardGitChanges, getGitSyncSummary, runGitCheckoutAction, runGitSyncAction } from "../workspace/git-sync";
+import { manualChangesDetector } from "../workspace/manual-changes";
+import { manualCheckpointManager } from "../workspace/manual-checkpoints";
 import { searchWorkspaceFiles } from "../workspace/search-workspace-files";
 import {
 	deleteTaskWorktree,
@@ -37,10 +50,6 @@ import type { RuntimeTrpcContext } from "./app-router";
 
 export interface CreateWorkspaceApiDependencies {
 	ensureTerminalManagerForWorkspace: (workspaceId: string, repoPath: string) => Promise<TerminalSessionManager>;
-	getScopedClineTaskSessionService: (scope: {
-		workspaceId: string;
-		workspacePath: string;
-	}) => Promise<ClineTaskSessionService>;
 	broadcastRuntimeWorkspaceStateUpdated: (workspaceId: string, workspacePath: string) => Promise<void> | void;
 	broadcastRuntimeProjectsUpdated: (preferredCurrentProjectId: string | null) => Promise<void> | void;
 	buildWorkspaceStateSnapshot: (workspaceId: string, workspacePath: string) => Promise<RuntimeWorkspaceStateResponse>;
@@ -88,31 +97,14 @@ function normalizeRequiredTaskWorkspaceScopeInput(input: {
 	};
 }
 
-function isActiveTaskSessionState(summary: RuntimeTaskSessionSummary | null): boolean {
+function _isActiveTaskSessionState(summary: RuntimeTaskSessionSummary | null): boolean {
 	return summary?.state === "running" || summary?.state === "awaiting_review";
 }
 
 function selectLastTurnSummary(
 	terminalSummary: RuntimeTaskSessionSummary | null,
-	clineSummary: RuntimeTaskSessionSummary | null,
+	_clineSummary: RuntimeTaskSessionSummary | null,
 ): RuntimeTaskSessionSummary | null {
-	if (!terminalSummary) {
-		return clineSummary;
-	}
-	if (!clineSummary) {
-		return terminalSummary;
-	}
-	const terminalIsActive = isActiveTaskSessionState(terminalSummary);
-	const clineIsActive = isActiveTaskSessionState(clineSummary);
-	if (terminalIsActive !== clineIsActive) {
-		return clineIsActive ? clineSummary : terminalSummary;
-	}
-	if (terminalSummary.updatedAt !== clineSummary.updatedAt) {
-		return terminalSummary.updatedAt > clineSummary.updatedAt ? terminalSummary : clineSummary;
-	}
-	if (clineSummary.agentId === "cline" && terminalSummary.agentId !== "cline") {
-		return clineSummary;
-	}
 	return terminalSummary;
 }
 
@@ -294,11 +286,7 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 					workspaceScope.workspaceId,
 					workspaceScope.workspacePath,
 				);
-				const clineTaskSessionService = await deps.getScopedClineTaskSessionService(workspaceScope);
-				const summary = selectLastTurnSummary(
-					terminalManager.getSummary(normalizedInput.taskId),
-					clineTaskSessionService.getSummary(normalizedInput.taskId),
-				);
+				const summary = selectLastTurnSummary(terminalManager.getSummary(normalizedInput.taskId), null);
 				const fromCheckpoint = summary?.previousTurnCheckpoint;
 				const toCheckpoint = summary?.latestTurnCheckpoint;
 				if (!toCheckpoint) {
@@ -436,6 +424,98 @@ export function createWorkspaceApi(deps: CreateWorkspaceApiDependencies): Runtim
 				cwd: diffCwd,
 				commitHash: input.commitHash,
 			});
+		},
+		listManualCheckpoints: async (
+			_workspaceScope,
+			input: RuntimeListManualCheckpointsRequest,
+		): Promise<RuntimeListManualCheckpointsResponse> => {
+			try {
+				const checkpoints = await manualCheckpointManager.listCheckpoints(input.taskId);
+				return {
+					ok: true,
+					checkpoints: checkpoints.map((cp) => ({
+						id: cp.id,
+						createdAt: cp.timestamp,
+					})),
+				};
+			} catch (error) {
+				return {
+					ok: false,
+					checkpoints: [],
+					error: error instanceof Error ? error.message : "Failed to list checkpoints",
+				};
+			}
+		},
+		createManualCheckpoint: async (
+			_workspaceScope,
+			input: RuntimeCreateManualCheckpointRequest,
+		): Promise<RuntimeCreateManualCheckpointResponse> => {
+			try {
+				const checkpointId = await manualCheckpointManager.createCheckpoint(input.taskId, input.dir);
+				return {
+					ok: true,
+					checkpointId,
+				};
+			} catch (error) {
+				return {
+					ok: false,
+					error: error instanceof Error ? error.message : "Failed to create checkpoint",
+				};
+			}
+		},
+		restoreManualCheckpoint: async (
+			_workspaceScope,
+			input: RuntimeRestoreManualCheckpointRequest,
+		): Promise<RuntimeRestoreManualCheckpointResponse> => {
+			try {
+				await manualCheckpointManager.restoreCheckpoint(input.taskId, input.checkpointId, input.dir);
+				return {
+					ok: true,
+				};
+			} catch (error) {
+				return {
+					ok: false,
+					error: error instanceof Error ? error.message : "Failed to restore checkpoint",
+				};
+			}
+		},
+		deleteManualCheckpoint: async (
+			_workspaceScope,
+			input: RuntimeDeleteManualCheckpointRequest,
+		): Promise<RuntimeDeleteManualCheckpointResponse> => {
+			try {
+				await manualCheckpointManager.deleteCheckpoint(input.taskId, input.checkpointId);
+				return {
+					ok: true,
+				};
+			} catch (error) {
+				return {
+					ok: false,
+					error: error instanceof Error ? error.message : "Failed to delete checkpoint",
+				};
+			}
+		},
+		getManualWorkspaceChanges: async (
+			_workspaceScope,
+			input: RuntimeGetManualWorkspaceChangesRequest,
+		): Promise<RuntimeManualWorkspaceChanges> => {
+			return await manualChangesDetector.getChanges(input.taskId, input.dir);
+		},
+		takeManualSnapshot: async (
+			_workspaceScope,
+			input: RuntimeTakeManualSnapshotRequest,
+		): Promise<RuntimeTakeManualSnapshotResponse> => {
+			try {
+				await manualChangesDetector.takeSnapshot(input.taskId, input.dir);
+				return {
+					ok: true,
+				};
+			} catch (error) {
+				return {
+					ok: false,
+					error: error instanceof Error ? error.message : "Failed to take snapshot",
+				};
+			}
 		},
 	};
 }

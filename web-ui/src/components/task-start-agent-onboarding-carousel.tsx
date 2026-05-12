@@ -3,7 +3,6 @@ import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
 import { Check } from "lucide-react";
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { ClineSetupSection } from "@/components/shared/cline-setup-section";
 import { cn } from "@/components/ui/cn";
 import { useRuntimeSettingsClineController } from "@/hooks/use-runtime-settings-cline-controller";
 import { isClineProviderAuthenticated } from "@/runtime/native-agent";
@@ -349,7 +348,7 @@ export function TaskStartAgentOnboardingCarousel({
 }): ReactElement {
 	const [activeAgentId, setActiveAgentId] = useState<RuntimeAgentId | null>(selectedAgentId);
 	const [selectionError, setSelectionError] = useState<string | null>(null);
-	const [clineSetupError, setClineSetupError] = useState<string | null>(null);
+	const [_clineSetupError, setClineSetupError] = useState<string | null>(null);
 	const selectionSavePromiseRef = useRef<Promise<AgentSelectionResult> | null>(null);
 
 	useEffect(() => {
@@ -550,22 +549,6 @@ export function TaskStartAgentOnboardingCarousel({
 									</>
 								) : null}
 							</p>
-							{agent.id === "cline" ? (
-								<div className="mt-2">
-									<ClineSetupSection
-										controller={clineSettings}
-										controlsDisabled={false}
-										showMcpSettings={false}
-										onError={setClineSetupError}
-										onSaved={onClineSetupSaved}
-									/>
-									{clineSetupError ? (
-										<div className="mt-2 rounded-md border border-status-red/30 bg-status-red/5 p-2 text-[12px] text-text-primary">
-											{clineSetupError}
-										</div>
-									) : null}
-								</div>
-							) : null}
 						</div>
 					))}
 					{selectionError ? (

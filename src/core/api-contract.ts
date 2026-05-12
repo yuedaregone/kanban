@@ -40,6 +40,87 @@ export const runtimeWorkspaceChangesResponseSchema = z.object({
 });
 export type RuntimeWorkspaceChangesResponse = z.infer<typeof runtimeWorkspaceChangesResponseSchema>;
 
+export const runtimeManualCheckpointSchema = z.object({
+	id: z.string(),
+	createdAt: z.number(),
+});
+export type RuntimeManualCheckpoint = z.infer<typeof runtimeManualCheckpointSchema>;
+
+export const runtimeListManualCheckpointsRequestSchema = z.object({
+	taskId: z.string(),
+});
+export type RuntimeListManualCheckpointsRequest = z.infer<typeof runtimeListManualCheckpointsRequestSchema>;
+
+export const runtimeListManualCheckpointsResponseSchema = z.object({
+	ok: z.boolean(),
+	checkpoints: z.array(runtimeManualCheckpointSchema),
+	error: z.string().optional(),
+});
+export type RuntimeListManualCheckpointsResponse = z.infer<typeof runtimeListManualCheckpointsResponseSchema>;
+
+export const runtimeCreateManualCheckpointRequestSchema = z.object({
+	taskId: z.string(),
+	dir: z.string(),
+});
+export type RuntimeCreateManualCheckpointRequest = z.infer<typeof runtimeCreateManualCheckpointRequestSchema>;
+
+export const runtimeCreateManualCheckpointResponseSchema = z.object({
+	ok: z.boolean(),
+	checkpointId: z.string().optional(),
+	error: z.string().optional(),
+});
+export type RuntimeCreateManualCheckpointResponse = z.infer<typeof runtimeCreateManualCheckpointResponseSchema>;
+
+export const runtimeRestoreManualCheckpointRequestSchema = z.object({
+	taskId: z.string(),
+	checkpointId: z.string(),
+	dir: z.string(),
+});
+export type RuntimeRestoreManualCheckpointRequest = z.infer<typeof runtimeRestoreManualCheckpointRequestSchema>;
+
+export const runtimeRestoreManualCheckpointResponseSchema = z.object({
+	ok: z.boolean(),
+	error: z.string().optional(),
+});
+export type RuntimeRestoreManualCheckpointResponse = z.infer<typeof runtimeRestoreManualCheckpointResponseSchema>;
+
+export const runtimeDeleteManualCheckpointRequestSchema = z.object({
+	taskId: z.string(),
+	checkpointId: z.string(),
+});
+export type RuntimeDeleteManualCheckpointRequest = z.infer<typeof runtimeDeleteManualCheckpointRequestSchema>;
+
+export const runtimeDeleteManualCheckpointResponseSchema = z.object({
+	ok: z.boolean(),
+	error: z.string().optional(),
+});
+export type RuntimeDeleteManualCheckpointResponse = z.infer<typeof runtimeDeleteManualCheckpointResponseSchema>;
+
+export const runtimeManualWorkspaceChangesSchema = z.object({
+	added: z.array(z.string()),
+	modified: z.array(z.string()),
+	deleted: z.array(z.string()),
+});
+export type RuntimeManualWorkspaceChanges = z.infer<typeof runtimeManualWorkspaceChangesSchema>;
+
+export const runtimeGetManualWorkspaceChangesRequestSchema = z.object({
+	taskId: z.string(),
+	dir: z.string(),
+});
+export type RuntimeGetManualWorkspaceChangesRequest = z.infer<typeof runtimeGetManualWorkspaceChangesRequestSchema>;
+
+export const runtimeTakeManualSnapshotRequestSchema = z.object({
+	taskId: z.string(),
+	dir: z.string(),
+});
+export type RuntimeTakeManualSnapshotRequest = z.infer<typeof runtimeTakeManualSnapshotRequestSchema>;
+
+export const runtimeTakeManualSnapshotResponseSchema = z.object({
+	ok: z.boolean(),
+	error: z.string().optional(),
+});
+export type RuntimeTakeManualSnapshotResponse = z.infer<typeof runtimeTakeManualSnapshotResponseSchema>;
+
 export const runtimeWorkspaceFileSearchRequestSchema = z.object({
 	query: z.string(),
 	limit: z.number().int().positive().optional(),
@@ -485,6 +566,7 @@ export const runtimeProjectAddRequestSchema = z
 		path: z.string().optional(),
 		gitUrl: z.string().optional(),
 		initializeGit: z.boolean().optional(),
+		mode: z.enum(["git", "manual"]).optional(),
 	})
 	.refine((data) => data.path || data.gitUrl, { message: "Either path or gitUrl is required" });
 export type RuntimeProjectAddRequest = z.infer<typeof runtimeProjectAddRequestSchema>;

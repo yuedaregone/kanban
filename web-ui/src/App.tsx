@@ -32,7 +32,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { UpdateNotificationController } from "@/components/update-notification-controller";
 import { createInitialBoardData } from "@/data/board-data";
 import { createIdleTaskSession } from "@/hooks/app-utils";
-import { KanbanAccessBlockedFallback } from "@/hooks/kanban-access-blocked-fallback";
 import { RuntimeDisconnectedFallback } from "@/hooks/runtime-disconnected-fallback";
 import { useAppHotkeys } from "@/hooks/use-app-hotkeys";
 import { useBoardInteractions } from "@/hooks/use-board-interactions";
@@ -42,7 +41,6 @@ import { useDocumentVisibility } from "@/hooks/use-document-visibility";
 import { useFeaturebaseFeedbackWidget } from "@/hooks/use-featurebase-feedback-widget";
 import { useGitActions } from "@/hooks/use-git-actions";
 import { useHomeSidebarAgentPanel } from "@/hooks/use-home-sidebar-agent-panel";
-import { useKanbanAccessGate } from "@/hooks/use-kanban-access-gate";
 import { useOpenWorkspace } from "@/hooks/use-open-workspace";
 import { parseRemovedProjectPathFromStreamError, useProjectNavigation } from "@/hooks/use-project-navigation";
 import { useProjectUiState } from "@/hooks/use-project-ui-state";
@@ -51,6 +49,7 @@ import { useShortcutActions } from "@/hooks/use-shortcut-actions";
 import { useStartupOnboarding } from "@/hooks/use-startup-onboarding";
 import { useTaskBranchOptions } from "@/hooks/use-task-branch-options";
 import { useTaskEditor } from "@/hooks/use-task-editor";
+import { useTaskQueue } from "@/hooks/use-task-queue";
 import { useTaskSessions } from "@/hooks/use-task-sessions";
 import { useTaskStartActions } from "@/hooks/use-task-start-actions";
 import { useTerminalPanels } from "@/hooks/use-terminal-panels";
@@ -136,9 +135,6 @@ export default function App(): ReactElement {
 		isLoading: isRuntimeProjectConfigLoading,
 		refresh: refreshRuntimeProjectConfig,
 	} = useRuntimeProjectConfig(currentProjectId);
-	const { isBlocked: isKanbanAccessBlocked, refresh: refreshKanbanAccess } = useKanbanAccessGate({
-		workspaceId: currentProjectId,
-	});
 	const isTaskAgentReady = isTaskAgentSetupSatisfied(runtimeProjectConfig);
 	const settingsWorkspaceId = navigationCurrentProjectId ?? currentProjectId;
 	const { config: settingsRuntimeProjectConfig, refresh: refreshSettingsRuntimeProjectConfig } =
@@ -190,6 +186,7 @@ export default function App(): ReactElement {
 		}
 		return shortcuts[0]?.label ?? null;
 	}, [runtimeProjectConfig?.selectedShortcutLabel, shortcuts]);
+	const taskQueue = useTaskQueue();
 	const {
 		upsertSession,
 		ensureTaskWorkspace,
@@ -204,6 +201,7 @@ export default function App(): ReactElement {
 	} = useTaskSessions({
 		currentProjectId,
 		setSessions,
+		taskQueue,
 	});
 
 	const {
@@ -797,9 +795,6 @@ export default function App(): ReactElement {
 	if (isRuntimeDisconnected) {
 		return <RuntimeDisconnectedFallback />;
 	}
-	if (isKanbanAccessBlocked) {
-		return <KanbanAccessBlockedFallback />;
-	}
 
 	return (
 		<LayoutCustomizationsProvider onResetBottomTerminalLayoutCustomizations={resetBottomTerminalLayoutCustomizations}>
@@ -960,6 +955,11 @@ export default function App(): ReactElement {
 												}
 												onDragEnd={handleDragEnd}
 												defaultClineModelId={runtimeProjectConfig?.clineProviderSettings?.modelId ?? null}
+												autoExecuteEnabled={taskQueue.queueState.autoExecuteEnabled}
+												onToggleAutoExecute={taskQueue.toggleAutoExecute}
+												queuedTaskIds={taskQueue.queueState.queuedTaskIds}
+												runningTaskId={taskQueue.queueState.runningTaskId}
+												getTaskQueuePosition={taskQueue.getTaskQueuePosition}
 											/>
 										)}
 									</div>

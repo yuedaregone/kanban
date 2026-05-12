@@ -614,7 +614,11 @@ export function TaskCreateDialog({
 				</label>
 				{mode === "single" ? (
 					<>
-						<Button size="sm" onClick={handleCreateSingle} disabled={!prompt.trim() || !branchRef}>
+						<Button
+							size="sm"
+							onClick={handleCreateSingle}
+							disabled={!prompt.trim() || !workspaceId || (branchOptions.length > 0 && !branchRef)}
+						>
 							<span className="inline-flex items-center">
 								Create
 								<ButtonShortcut />
@@ -627,7 +631,7 @@ export function TaskCreateDialog({
 										variant="primary"
 										size="sm"
 										onClick={() => handleRunSingleStartAction(primaryStartAction)}
-										disabled={!prompt.trim() || !branchRef}
+										disabled={!prompt.trim() || !workspaceId || (branchOptions.length > 0 && !branchRef)}
 										className={onCreateStartAndOpen ? "rounded-r-none" : undefined}
 									>
 										<span className="inline-flex items-center">
@@ -640,7 +644,9 @@ export function TaskCreateDialog({
 											<Button
 												variant="primary"
 												size="sm"
-												disabled={!prompt.trim() || !branchRef}
+												disabled={
+													!prompt.trim() || !workspaceId || (branchOptions.length > 0 && !branchRef)
+												}
 												className="rounded-l-none border-l border-white/20 px-1"
 												aria-label="More start options"
 											>
@@ -683,7 +689,11 @@ export function TaskCreateDialog({
 					</>
 				) : (
 					<>
-						<Button size="sm" onClick={handleCreateAll} disabled={validTaskCount === 0 || !branchRef}>
+						<Button
+							size="sm"
+							onClick={handleCreateAll}
+							disabled={validTaskCount === 0 || !workspaceId || (branchOptions.length > 0 && !branchRef)}
+						>
 							<span className="inline-flex items-center">
 								Create {validTaskCount} {taskCountLabel}
 								<ButtonShortcut />
@@ -694,7 +704,7 @@ export function TaskCreateDialog({
 								variant="primary"
 								size="sm"
 								onClick={handleCreateAndStartAll}
-								disabled={validTaskCount === 0 || !branchRef}
+								disabled={validTaskCount === 0 || !workspaceId || (branchOptions.length > 0 && !branchRef)}
 							>
 								<span className="inline-flex items-center">
 									Start {validTaskCount} {taskCountLabel}

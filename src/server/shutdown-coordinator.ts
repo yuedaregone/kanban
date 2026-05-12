@@ -2,9 +2,7 @@ import type { RuntimeTaskSessionSummary, RuntimeWorkspaceStateResponse } from ".
 import { updateTaskDependencies } from "../core/task-board-mutations";
 import { listWorkspaceIndexEntries, loadWorkspaceState, saveWorkspaceState } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
-import { deleteTaskWorktree, removeTaskWorktreeSetupLock } from "../workspace/task-worktree";
 import type { WorkspaceRegistry } from "./workspace-registry";
-import { collectProjectWorktreeTaskIdsForRemoval } from "./workspace-registry";
 
 export interface RuntimeShutdownCoordinatorDependencies {
 	workspaceRegistry: Pick<WorkspaceRegistry, "listManagedWorkspaces">;
@@ -60,13 +58,11 @@ async function persistInterruptedSessions(
 		workspaceState?: RuntimeWorkspaceStateResponse;
 		resolveSummary?: (taskId: string) => RuntimeTaskSessionSummary | null;
 	},
-): Promise<string[]> {
+): Promise<void> {
 	if (interruptedTaskIds.length === 0) {
-		return [];
+		return;
 	}
 	const workspaceState = options?.workspaceState ?? (await loadWorkspaceState(workspacePath));
-	const worktreeTaskIds = collectProjectWorktreeTaskIdsForRemoval(workspaceState.board);
-	const worktreeTaskIdsToCleanup = interruptedTaskIds.filter((taskId) => worktreeTaskIds.has(taskId));
 	let nextBoard = workspaceState.board;
 	for (const taskId of interruptedTaskIds) {
 		nextBoard = moveTaskToTrash(nextBoard, taskId);
@@ -90,49 +86,6 @@ async function persistInterruptedSessions(
 		board: nextBoard,
 		sessions: nextSessions,
 	});
-	return worktreeTaskIdsToCleanup;
-}
-
-async function cleanupInterruptedTaskWorktrees(
-	repoPath: string,
-	taskIds: string[],
-	warn: (message: string) => void,
-): Promise<void> {
-	if (taskIds.length === 0) {
-		return;
-	}
-	const deletions = await Promise.all(
-		taskIds.map(async (taskId) => ({
-			taskId,
-			deleted: await deleteTaskWorktree({
-				repoPath,
-				taskId,
-			}),
-		})),
-	);
-	for (const { taskId, deleted } of deletions) {
-		if (deleted.ok) {
-			continue;
-		}
-		const message = deleted.error ?? `Could not delete task workspace for task "${taskId}" during shutdown.`;
-		warn(message);
-	}
-}
-
-async function cleanupTaskWorktreeSetupLocks(
-	repoPaths: Iterable<string>,
-	warn: (message: string) => void,
-): Promise<void> {
-	await Promise.all(
-		Array.from(new Set(repoPaths)).map(async (repoPath) => {
-			try {
-				await removeTaskWorktreeSetupLock(repoPath);
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				warn(`Could not remove task worktree setup lock for ${repoPath} during shutdown cleanup. ${message}`);
-			}
-		}),
-	);
 }
 
 function shouldInterruptSessionOnShutdown(summary: RuntimeTaskSessionSummary): boolean {
@@ -154,10 +107,6 @@ function collectShutdownInterruptedTaskIds(
 		taskIds.add(summary.taskId);
 	}
 	return Array.from(taskIds);
-}
-
-function collectWorkColumnTaskIds(workspaceState: RuntimeWorkspaceStateResponse): string[] {
-	return Array.from(collectProjectWorktreeTaskIdsForRemoval(workspaceState.board));
 }
 
 export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDependencies): Promise<void> {
@@ -183,9 +132,6 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 		managedWorkspacePaths.add(workspacePath);
 		try {
 			const workspaceState = await loadWorkspaceState(workspacePath);
-			for (const taskId of collectWorkColumnTaskIds(workspaceState)) {
-				interruptedTaskIds.add(taskId);
-			}
 			interruptedByWorkspace.push({
 				workspacePath,
 				interruptedTaskIds: Array.from(interruptedTaskIds),
@@ -205,7 +151,7 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 		}
 		try {
 			const workspaceState = await loadWorkspaceState(workspace.repoPath);
-			const interruptedTaskIds = collectWorkColumnTaskIds(workspaceState);
+			const interruptedTaskIds: string[] = [];
 			if (interruptedTaskIds.length === 0) {
 				continue;
 			}
@@ -222,22 +168,12 @@ export async function shutdownRuntimeServer(deps: RuntimeShutdownCoordinatorDepe
 
 	await Promise.all(
 		interruptedByWorkspace.map(async (workspace) => {
-			const worktreeTaskIds = await persistInterruptedSessions(
-				workspace.workspacePath,
-				workspace.interruptedTaskIds,
-				{
-					workspaceState: workspace.workspaceState,
-					resolveSummary: workspace.resolveSummary,
-				},
-			);
-			await cleanupInterruptedTaskWorktrees(workspace.workspacePath, worktreeTaskIds, deps.warn);
+			await persistInterruptedSessions(workspace.workspacePath, workspace.interruptedTaskIds, {
+				workspaceState: workspace.workspaceState,
+				resolveSummary: workspace.resolveSummary,
+			});
 		}),
 	);
 
 	await deps.closeRuntimeServer();
-
-	await cleanupTaskWorktreeSetupLocks(
-		[...managedWorkspacePaths, ...indexedWorkspaces.map((workspace) => workspace.repoPath)],
-		deps.warn,
-	);
 }

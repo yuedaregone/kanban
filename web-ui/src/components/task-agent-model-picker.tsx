@@ -4,7 +4,6 @@ import { ChevronDown } from "lucide-react";
 import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ClineChatModelSelector } from "@/components/detail-panels/cline-chat-model-selector";
 import {
 	buildClineAgentModelPickerOptions,
 	buildClineSelectedModelButtonText,
@@ -305,7 +304,7 @@ export function TaskAgentModelPicker({
 					nextSettings.providerId ||
 					nextSettings.modelId ||
 					currentSettings !== undefined ||
-					Boolean(defaultReasoningEffort)
+					defaultReasoningEffort
 				) {
 					return nextSettings;
 				}
@@ -396,7 +395,7 @@ export function TaskAgentModelPicker({
 		setReasoningEffortWithOverride,
 	]);
 
-	const selectedModelButtonText = useMemo(
+	const _selectedModelButtonText = useMemo(
 		() =>
 			buildClineSelectedModelButtonText({
 				modelOptions: modelPickerOptions.options,
@@ -543,13 +542,10 @@ export function TaskAgentModelPicker({
 										<span className="text-[11px] text-text-secondary block mb-1">
 											Model{isLoadingModels ? " (loading\u2026)" : ""}
 										</span>
-										<ClineChatModelSelector
-											modelOptions={modelPickerOptions.options}
-											recommendedModelIds={modelPickerOptions.recommendedModelIds}
-											pinSelectedModelToTop={modelPickerOptions.shouldPinSelectedModelToTop}
-											selectedModelId={clineModelId ?? ""}
-											selectedModelButtonText={selectedModelButtonText}
-											onSelectModel={(value) => {
+										<select
+											value={clineModelId ?? ""}
+											onChange={(e) => {
+												const value = e.target.value || undefined;
 												updateTaskClineSettings((currentSettings) => {
 													const nextSettings = cloneTaskClineSettings(currentSettings) ?? {};
 													if (value) {
@@ -581,20 +577,16 @@ export function TaskAgentModelPicker({
 													setReasoningEffortWithOverride("");
 												}
 											}}
-											reasoningEnabledModelIds={reasoningEnabledModelIds}
-											defaultOptionSupportsReasoningEffort={
-												!clineModelId && selectedModelSupportsReasoningEffort
-											}
-											selectedReasoningEffort={reasoningEffort}
-											onSelectReasoningEffort={(nextReasoningEffort) =>
-												setReasoningEffortWithOverride(nextReasoningEffort)
-											}
 											disabled={isLoadingModels}
-											isModelLoading={isLoadingModels}
-											fill
-											triggerVariant="default"
-											onPopoverOpenChange={setIsModelPopoverOpen}
-										/>
+											className="w-full rounded-md border border-border bg-surface-2 px-2 py-1.5 text-sm text-text-primary"
+										>
+											<option value="">Select model...</option>
+											{modelPickerOptions.options.map((option) => (
+												<option key={option.value} value={option.value}>
+													{option.label}
+												</option>
+											))}
+										</select>
 									</div>
 								) : null}
 							</div>

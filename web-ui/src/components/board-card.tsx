@@ -1,6 +1,5 @@
 import { Draggable } from "@hello-pangea/dnd";
 import { getRuntimeAgentCatalogEntry } from "@runtime-agent-catalog";
-import { formatClineToolCallLabel } from "@runtime-cline-tool-call-display";
 import { buildTaskWorktreeDisplayPath } from "@runtime-task-worktree-path";
 import { AlertCircle, AlertTriangle, Bot, GitBranch, Pencil, Play, RotateCcw, Trash2 } from "lucide-react";
 import type { KeyboardEvent, MouseEvent } from "react";
@@ -119,7 +118,8 @@ function resolveToolCallLabel(
 		if (!toolInputSummary && !parsedSummary) {
 			return null;
 		}
-		return formatClineToolCallLabel(toolName, toolInputSummary ?? parsedSummary);
+		const summary = toolInputSummary ?? parsedSummary;
+		return summary ? `${toolName}: ${summary}` : toolName;
 	}
 	if (!activityText) {
 		return null;
@@ -128,7 +128,7 @@ function resolveToolCallLabel(
 	if (!parsed) {
 		return null;
 	}
-	return formatClineToolCallLabel(parsed.toolName, parsed.toolInputSummary);
+	return parsed.toolInputSummary ? `${parsed.toolName}: ${parsed.toolInputSummary}` : parsed.toolName;
 }
 
 function isCardCreditLimitError(summary: RuntimeTaskSessionSummary | undefined): boolean {
@@ -234,6 +234,7 @@ export function BoardCard({
 	isDependencyLinking = false,
 	workspacePath,
 	defaultClineModelId = null,
+	queuePosition,
 }: {
 	card: BoardCardModel;
 	index: number;
@@ -258,6 +259,7 @@ export function BoardCard({
 	isDependencyLinking?: boolean;
 	workspacePath?: string | null;
 	defaultClineModelId?: string | null;
+	queuePosition?: number | null;
 }): React.ReactElement {
 	const [isHovered, setIsHovered] = useState(false);
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -746,6 +748,17 @@ export function BoardCard({
 											{sessionActivity.text}
 										</p>
 									</div>
+								</div>
+							) : null}
+							{queuePosition != null ? (
+								<div className="flex items-center gap-1.5 mt-[6px]">
+									<span
+										className="inline-block shrink-0 rounded-full bg-status-blue"
+										style={{ width: 6, height: 6, marginTop: 4 }}
+									/>
+									<p className="m-0 font-mono truncate text-status-blue" style={{ fontSize: 12 }}>
+										Queued (#{queuePosition})
+									</p>
 								</div>
 							) : null}
 							{showWorkspaceStatus && reviewWorkspacePath ? (

@@ -1,4 +1,4 @@
-import { act, forwardRef, type ReactNode, useImperativeHandle } from "react";
+import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,18 +8,9 @@ import { TERMINAL_THEME_COLORS } from "@/terminal/theme-colors";
 import type { BoardCard, BoardColumn, CardSelection } from "@/types";
 
 const mockUseRuntimeWorkspaceChanges = vi.fn();
-const {
-	mockAgentTerminalPanel,
-	mockClineAgentChatPanel,
-	mockDiffViewerPanel,
-	mockClineAppendToDraft,
-	mockClineSendText,
-} = vi.hoisted(() => ({
+const { mockAgentTerminalPanel, mockDiffViewerPanel } = vi.hoisted(() => ({
 	mockAgentTerminalPanel: vi.fn((_props: { panelBackgroundColor?: string; terminalBackgroundColor?: string }) => null),
-	mockClineAgentChatPanel: vi.fn((..._args: unknown[]) => null),
 	mockDiffViewerPanel: vi.fn((..._args: unknown[]) => null),
-	mockClineAppendToDraft: vi.fn(),
-	mockClineSendText: vi.fn(async () => {}),
 }));
 
 vi.mock("react-hotkeys-hook", () => ({
@@ -32,17 +23,6 @@ vi.mock("@/hooks/use-is-mobile", () => ({
 
 vi.mock("@/components/detail-panels/agent-terminal-panel", () => ({
 	AgentTerminalPanel: mockAgentTerminalPanel,
-}));
-
-vi.mock("@/components/detail-panels/cline-agent-chat-panel", () => ({
-	ClineAgentChatPanel: forwardRef((props: unknown, ref) => {
-		mockClineAgentChatPanel(props);
-		useImperativeHandle(ref, () => ({
-			appendToDraft: mockClineAppendToDraft,
-			sendText: mockClineSendText,
-		}));
-		return <div data-testid="cline-agent-chat-panel" />;
-	}),
 }));
 
 vi.mock("@/components/detail-panels/column-context-panel", () => ({
@@ -180,10 +160,7 @@ describe("CardDetailView", () => {
 		document.body.appendChild(container);
 		root = createRoot(container);
 		mockAgentTerminalPanel.mockClear();
-		mockClineAgentChatPanel.mockClear();
 		mockDiffViewerPanel.mockClear();
-		mockClineAppendToDraft.mockClear();
-		mockClineSendText.mockClear();
 		mockUseRuntimeWorkspaceChanges.mockReturnValue({
 			changes: {
 				files: [
@@ -207,7 +184,6 @@ describe("CardDetailView", () => {
 		});
 		mockUseRuntimeWorkspaceChanges.mockReset();
 		mockAgentTerminalPanel.mockClear();
-		mockClineAgentChatPanel.mockClear();
 		mockDiffViewerPanel.mockClear();
 		mockClineAppendToDraft.mockClear();
 		mockClineSendText.mockClear();
@@ -413,11 +389,11 @@ describe("CardDetailView", () => {
 			);
 		});
 
-		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeInstanceOf(HTMLDivElement);
-		expect(container.querySelector('[data-testid="agent-terminal-panel"]')).toBeNull();
+		expect(container.querySelector('[data-testid="agent-terminal-panel"]')).toBeInstanceOf(HTMLDivElement);
+		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeNull();
 	});
 
-	it("does not render native chat panel when the task explicitly uses a non-cline agent", async () => {
+	it("renders terminal panel for non-cline agent", async () => {
 		const selection = createSelection();
 		selection.card.agentId = "codex";
 
@@ -441,10 +417,11 @@ describe("CardDetailView", () => {
 			);
 		});
 
+		expect(container.querySelector('[data-testid="agent-terminal-panel"]')).toBeInstanceOf(HTMLDivElement);
 		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeNull();
 	});
 
-	it("shows cline chat panel when task session agentId is cline even if global agent is claude", async () => {
+	it("shows terminal panel when task session agentId is cline even if global agent is claude", async () => {
 		await act(async () => {
 			root.render(
 				<CardDetailView
@@ -479,7 +456,8 @@ describe("CardDetailView", () => {
 			);
 		});
 
-		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeInstanceOf(HTMLDivElement);
+		expect(container.querySelector('[data-testid="agent-terminal-panel"]')).toBeInstanceOf(HTMLDivElement);
+		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeNull();
 	});
 
 	it("shows terminal panel when task session agentId is claude even if global agent is cline", async () => {
@@ -517,6 +495,7 @@ describe("CardDetailView", () => {
 			);
 		});
 
+		expect(container.querySelector('[data-testid="agent-terminal-panel"]')).toBeInstanceOf(HTMLDivElement);
 		expect(container.querySelector('[data-testid="cline-agent-chat-panel"]')).toBeNull();
 		expect(mockAgentTerminalPanel).toHaveBeenCalled();
 	});

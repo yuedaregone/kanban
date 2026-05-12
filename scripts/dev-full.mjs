@@ -96,8 +96,7 @@ const env = {
 	KANBAN_WEB_UI_PORT: String(webUiPort),
 };
 
-const tsxBin = isWindows ? "node_modules/.bin/tsx.cmd" : "node_modules/.bin/tsx";
-const runtime = spawn(tsxBin, ["watch", "src/cli.ts", ...runtimeCliArgs], {
+const runtime = spawn("node", ["node_modules/tsx/dist/cli.mjs", "watch", "src/cli.ts", ...runtimeCliArgs], {
 	env,
 	stdio: "inherit",
 });

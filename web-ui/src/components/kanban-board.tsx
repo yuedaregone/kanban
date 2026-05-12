@@ -54,6 +54,11 @@ export function KanbanBoard({
 	onRequestProgrammaticCardMoveReady,
 	workspacePath,
 	defaultClineModelId,
+	autoExecuteEnabled,
+	onToggleAutoExecute,
+	queuedTaskIds,
+	runningTaskId,
+	getTaskQueuePosition,
 }: {
 	data: BoardData;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
@@ -81,6 +86,11 @@ export function KanbanBoard({
 	onRequestProgrammaticCardMoveReady?: (requestMove: RequestProgrammaticCardMove | null) => void;
 	workspacePath?: string | null;
 	defaultClineModelId?: string | null;
+	autoExecuteEnabled?: boolean;
+	onToggleAutoExecute?: () => void;
+	queuedTaskIds?: string[];
+	runningTaskId?: string | null;
+	getTaskQueuePosition?: (taskId: string) => number | null;
 }): React.ReactElement {
 	const dragOccurredRef = useRef(false);
 	const boardRef = useRef<HTMLElement>(null);
@@ -375,6 +385,29 @@ export function KanbanBoard({
 			onDragEnd={handleDragEnd}
 			sensors={[programmaticSensor]}
 		>
+			<div className="flex items-center justify-between px-4 py-2">
+				<div className="flex items-center gap-2">
+					{onToggleAutoExecute && (
+						<button
+							type="button"
+							onClick={onToggleAutoExecute}
+							className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+								autoExecuteEnabled
+									? "bg-accent text-white"
+									: "bg-surface-2 text-text-secondary hover:bg-surface-3"
+							}`}
+						>
+							{autoExecuteEnabled ? "Auto-execute ON" : "Auto-execute OFF"}
+						</button>
+					)}
+					{queuedTaskIds && queuedTaskIds.length > 0 && (
+						<span className="text-xs text-text-tertiary">
+							{queuedTaskIds.length} task{queuedTaskIds.length !== 1 ? "s" : ""} queued
+						</span>
+					)}
+					{runningTaskId && <span className="text-xs text-status-green">1 task running</span>}
+				</div>
+			</div>
 			<section
 				ref={boardRef}
 				className="kb-board kb-dependency-surface"
@@ -411,6 +444,7 @@ export function KanbanBoard({
 						isDependencyLinking={dependencyLinking.draft !== null}
 						workspacePath={workspacePath}
 						defaultClineModelId={defaultClineModelId}
+						getTaskQueuePosition={getTaskQueuePosition}
 						onCardClick={(card) => {
 							if (!dragOccurredRef.current) {
 								onCardSelect(card.id);

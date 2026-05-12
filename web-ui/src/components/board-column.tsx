@@ -39,6 +39,7 @@ export function BoardColumn({
 	isDependencyLinking,
 	workspacePath,
 	defaultClineModelId,
+	getTaskQueuePosition,
 }: {
 	column: BoardColumnModel;
 	taskSessions: Record<string, RuntimeTaskSessionSummary>;
@@ -69,6 +70,7 @@ export function BoardColumn({
 	isDependencyLinking?: boolean;
 	workspacePath?: string | null;
 	defaultClineModelId?: string | null;
+	getTaskQueuePosition?: (taskId: string) => number | null;
 }): React.ReactElement {
 	const canCreate = column.id === "backlog" && onCreateTask;
 	const canStartAllTasks = column.id === "backlog" && onStartAllTasks;
@@ -189,6 +191,7 @@ export function BoardColumn({
 											workspacePath={workspacePath}
 											defaultClineModelId={defaultClineModelId}
 											onSaveTitle={onSaveTitle}
+											queuePosition={getTaskQueuePosition?.(card.id)}
 											onClick={() => {
 												if (column.id === "backlog") {
 													onEditTask?.(card);

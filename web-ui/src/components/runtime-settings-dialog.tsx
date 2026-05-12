@@ -24,8 +24,6 @@ import {
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AccountOrganizationSection } from "@/components/shared/account-organization-section";
-import { ClineSetupSection } from "@/components/shared/cline-setup-section";
 import {
 	getRuntimeShortcutIconComponent,
 	getRuntimeShortcutPickerOption,
@@ -352,7 +350,7 @@ export function RuntimeSettingsDialog({
 	liveMcpAuthStatuses = null,
 	onOpenChange,
 	onSaved,
-	onAccountSwitched,
+	_onAccountSwitched,
 	initialSection,
 }: {
 	open: boolean;
@@ -735,7 +733,7 @@ export function RuntimeSettingsDialog({
 		[workspaceId],
 	);
 
-	const handleClineSetupSaved = useCallback(() => {
+	const _handleClineSetupSaved = useCallback(() => {
 		refresh();
 		onSaved?.();
 	}, [onSaved, refresh]);
@@ -813,38 +811,6 @@ export function RuntimeSettingsDialog({
 							Allows agents to use tools without stopping for permission. Use at your own risk.
 						</p>
 					</div>
-
-					{/* ---- Cline ---- */}
-					{selectedAgentId === "cline" ? (
-						<>
-							<div data-settings-section="cline" />
-							<div className="sticky top-0 -mx-5 px-5 pt-4 pb-2 bg-surface-1 z-10">
-								<h2 className="flex items-center gap-2 text-base font-semibold text-text-primary m-0">
-									<Bot size={16} className="text-text-secondary" />
-									Cline
-								</h2>
-							</div>
-							<div className="rounded-lg border border-border bg-surface-0 px-4 py-3 mb-4">
-								<ClineSetupSection
-									controller={clineSettings}
-									mcpController={clineMcpSettings}
-									controlsDisabled={controlsDisabled}
-									workspaceId={workspaceId}
-									accountSection={
-										clineSettings.providerId.trim() === "cline" ? (
-											<AccountOrganizationSection
-												workspaceId={workspaceId}
-												open={open}
-												onAccountSwitched={onAccountSwitched}
-											/>
-										) : null
-									}
-									onError={setSaveError}
-									onSaved={handleClineSetupSaved}
-								/>
-							</div>
-						</>
-					) : null}
 
 					{/* ---- Git Prompts ---- */}
 					<div data-settings-section="git-prompts" />

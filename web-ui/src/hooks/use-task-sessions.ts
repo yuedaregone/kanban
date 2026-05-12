@@ -1,17 +1,15 @@
 // Frontend facade for task-scoped runtime actions.
 // It owns how the board and detail view start, stop, resize, and route task
-// sessions across native Cline and PTY-backed agents.
+// sessions across PTY-backed agents.
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback } from "react";
 
 import { notifyError } from "@/components/app-toaster";
 import { selectNewestTaskSessionSummary } from "@/hooks/home-sidebar-agent-panel-session-summary";
-import { type ClineChatActionResult, useClineChatRuntimeActions } from "@/hooks/use-cline-chat-runtime-actions";
+import type { UseTaskQueueResult } from "@/hooks/use-task-queue";
 import { estimateTaskSessionGeometry } from "@/runtime/task-session-geometry";
 import { getRuntimeTrpcClient } from "@/runtime/trpc-client";
 import type {
-	RuntimeTaskChatMessage,
-	RuntimeTaskSessionMode,
 	RuntimeTaskSessionSummary,
 	RuntimeTaskWorkspaceInfoResponse,
 	RuntimeWorktreeDeleteResponse,
@@ -26,6 +24,7 @@ import type { BoardCard } from "@/types";
 interface UseTaskSessionsInput {
 	currentProjectId: string | null;
 	setSessions: Dispatch<SetStateAction<Record<string, RuntimeTaskSessionSummary>>>;
+	taskQueue?: UseTaskQueueResult;
 }
 
 interface EnsureTaskWorkspaceResult {
@@ -58,40 +57,15 @@ export interface UseTaskSessionsResult {
 		text: string,
 		options?: SendTerminalInputOptions,
 	) => Promise<SendTaskSessionInputResult>;
-	sendTaskChatMessage: (
-		taskId: string,
-		text: string,
-		options?: { mode?: RuntimeTaskSessionMode },
-	) => Promise<ClineChatActionResult>;
-	abortTaskChatTurn: (taskId: string) => Promise<ClineChatActionResult>;
-	cancelTaskChatTurn: (taskId: string) => Promise<ClineChatActionResult>;
-	fetchTaskChatMessages: (taskId: string) => Promise<RuntimeTaskChatMessage[] | null>;
 	cleanupTaskWorkspace: (taskId: string) => Promise<RuntimeWorktreeDeleteResponse | null>;
 	fetchTaskWorkspaceInfo: (task: BoardCard) => Promise<RuntimeTaskWorkspaceInfoResponse | null>;
 }
 
-export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessionsInput): UseTaskSessionsResult {
-	/*
-		This merge needs to stay monotonic.
-
-		We chased a nasty terminal bug where Home and Detail panes would appear to
-		clear themselves right after starting a task or shell command. The actual
-		sequence was:
-
-		1. A new live session started and the terminal correctly saw a new startedAt.
-		2. usePersistentTerminalSession reset the xterm instance for the new session.
-		3. A stale summary from an older interrupted session was replayed back into
-		   React state from workspace hydration or the persistent terminal cache.
-		4. That older summary overwrote the newer running one.
-		5. The UI then bounced between old and new session identities, causing extra
-		   cleanup, remount, and reset cycles that looked like the terminal output
-		   had vanished.
-
-		Because of that, every task/session summary write here must prefer the
-		newest summary and ignore older ones. If this ever becomes a plain
-		last-write-wins assignment again, the "terminal randomly clears out"
-		regression is very likely to come back.
-	*/
+export function useTaskSessions({
+	currentProjectId,
+	setSessions,
+	taskQueue,
+}: UseTaskSessionsInput): UseTaskSessionsResult {
 	const upsertSession = useCallback(
 		(summary: RuntimeTaskSessionSummary) => {
 			setSessions((current) => {
@@ -108,15 +82,6 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		},
 		[setSessions],
 	);
-	const {
-		sendTaskChatMessage,
-		loadTaskChatMessages: fetchTaskChatMessages,
-		abortTaskChatTurn,
-		cancelTaskChatTurn,
-	} = useClineChatRuntimeActions({
-		currentProjectId,
-		onSessionSummary: upsertSession,
-	});
 
 	const ensureTaskWorkspace = useCallback(
 		async (task: BoardCard): Promise<EnsureTaskWorkspaceResult> => {
@@ -149,6 +114,23 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 			if (!currentProjectId) {
 				return { ok: false, message: "No project selected." };
 			}
+
+			if (taskQueue && !options?.resumeFromTrash) {
+				const isRunning = taskQueue.isTaskRunning(task.id);
+				if (isRunning) {
+					return { ok: false, message: "Task is already running." };
+				}
+				const isQueued = taskQueue.isTaskQueued(task.id);
+				if (isQueued) {
+					return { ok: false, message: "Task is already in queue." };
+				}
+				if (taskQueue.queueState.runningTaskId !== null) {
+					taskQueue.enqueueTask(task.id);
+					return { ok: true, message: "Task added to queue." };
+				}
+				taskQueue.setRunningTask(task.id);
+			}
+
 			try {
 				const kickoffPrompt = options?.resumeFromTrash ? "" : task.prompt.trim();
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
@@ -165,9 +147,11 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 					cols: geometry.cols,
 					rows: geometry.rows,
 					agentId: task.agentId,
-					clineSettings: task.clineSettings,
 				});
 				if (!payload.ok || !payload.summary) {
+					if (taskQueue && !options?.resumeFromTrash) {
+						taskQueue.setRunningTask(null);
+					}
 					return {
 						ok: false,
 						message: payload.error ?? "Task session start failed.",
@@ -179,11 +163,14 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 				}
 				return { ok: true };
 			} catch (error) {
+				if (taskQueue && !options?.resumeFromTrash) {
+					taskQueue.setRunningTask(null);
+				}
 				const message = error instanceof Error ? error.message : String(error);
 				return { ok: false, message };
 			}
 		},
-		[currentProjectId, upsertSession],
+		[currentProjectId, upsertSession, taskQueue],
 	);
 
 	const stopTaskSession = useCallback(
@@ -194,11 +181,14 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 			try {
 				const trpcClient = getRuntimeTrpcClient(currentProjectId);
 				await trpcClient.runtime.stopTaskSession.mutate({ taskId });
+				if (taskQueue) {
+					taskQueue.setRunningTask(null);
+				}
 			} catch {
 				// Ignore stop errors during cleanup.
 			}
 		},
-		[currentProjectId],
+		[currentProjectId, taskQueue],
 	);
 
 	const sendTaskSessionInput = useCallback(
@@ -289,10 +279,6 @@ export function useTaskSessions({ currentProjectId, setSessions }: UseTaskSessio
 		startTaskSession,
 		stopTaskSession,
 		sendTaskSessionInput,
-		sendTaskChatMessage,
-		abortTaskChatTurn,
-		cancelTaskChatTurn,
-		fetchTaskChatMessages,
 		cleanupTaskWorkspace,
 		fetchTaskWorkspaceInfo,
 	};

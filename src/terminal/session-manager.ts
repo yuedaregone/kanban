@@ -389,7 +389,7 @@ export class TerminalSessionManager implements TerminalSessionService {
 								const trustConfirmDelayMs = WORKSPACE_TRUST_CONFIRM_DELAY_MS;
 								entry.active.workspaceTrustConfirmTimer = setTimeout(() => {
 									const activeEntry = this.entries.get(request.taskId)?.active;
-									if (!activeEntry || !activeEntry.autoConfirmedWorkspaceTrust) {
+									if (!activeEntry?.autoConfirmedWorkspaceTrust) {
 										return;
 									}
 									activeEntry.session.write("\r");
