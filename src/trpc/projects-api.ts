@@ -18,7 +18,6 @@ import {
 } from "../state/workspace-state";
 import type { TerminalSessionManager } from "../terminal/session-manager";
 import { cloneGitRepository } from "../workspace/git-clone";
-import { ensureInitialCommit, initializeGitRepository } from "../workspace/initialize-repo";
 import { isPathWithinRoot } from "../workspace/path-sandbox";
 import { deleteTaskWorktree } from "../workspace/task-worktree";
 import type { RuntimeTrpcContext } from "./app-router";
@@ -35,7 +34,6 @@ export interface CreateProjectsApiDependencies {
 	clearActiveWorkspace: () => void;
 	resolveProjectInputPath: (inputPath: string, cwd: string) => string;
 	assertPathIsDirectory: (path: string) => Promise<void>;
-	hasGitRepository: (path: string) => boolean;
 	summarizeProjectTaskCounts: (workspaceId: string, repoPath: string) => Promise<RuntimeProjectTaskCounts>;
 	createProjectSummary: (project: {
 		workspaceId: string;
@@ -99,33 +97,6 @@ export function createProjectsApi(deps: CreateProjectsApiDependencies): RuntimeT
 					projectPath = deps.resolveProjectInputPath(body.path as string, resolveBasePath);
 				}
 				await deps.assertPathIsDirectory(projectPath);
-				if (!deps.hasGitRepository(projectPath)) {
-					if (!body.initializeGit) {
-						return {
-							ok: false,
-							project: null,
-							requiresGitInitialization: true,
-							error: "This folder is not a git repository. Cline requires git to manage worktrees. Initialize git to continue.",
-						} satisfies RuntimeProjectAddResponse;
-					}
-					const initResult = await initializeGitRepository(projectPath);
-					if (!initResult.ok) {
-						return {
-							ok: false,
-							project: null,
-							error: initResult.error ?? "Failed to initialize git repository.",
-						} satisfies RuntimeProjectAddResponse;
-					}
-				} else {
-					const commitResult = await ensureInitialCommit(projectPath);
-					if (!commitResult.ok) {
-						return {
-							ok: false,
-							project: null,
-							error: commitResult.error ?? "Failed to ensure initial commit.",
-						} satisfies RuntimeProjectAddResponse;
-					}
-				}
 				const context = await loadWorkspaceContext(projectPath);
 				deps.rememberWorkspace(context.workspaceId, context.repoPath);
 				const projectsAfterAdd = await listWorkspaceIndexEntries();

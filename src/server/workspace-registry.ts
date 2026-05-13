@@ -26,7 +26,6 @@ export interface CreateWorkspaceRegistryDependencies {
 	cwd: string;
 	loadGlobalRuntimeConfig: () => Promise<RuntimeConfigState>;
 	loadRuntimeConfig: (cwd: string) => Promise<RuntimeConfigState>;
-	hasGitRepository: (path: string) => boolean;
 	pathIsDirectory: (path: string) => Promise<boolean>;
 	onTerminalManagerReady?: (workspaceId: string, manager: TerminalSessionManager) => void;
 }
@@ -184,8 +183,7 @@ function toProjectSummary(project: {
 }
 
 export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDependencies): Promise<WorkspaceRegistry> {
-	const launchedFromGitRepo = deps.hasGitRepository(deps.cwd);
-	const initialWorkspace = launchedFromGitRepo ? await loadWorkspaceContext(deps.cwd) : null;
+	const initialWorkspace = await loadWorkspaceContext(deps.cwd);
 	let indexedWorkspace: RuntimeWorkspaceIndexEntry | null = null;
 	if (!initialWorkspace) {
 		const indexedWorkspaces = await listWorkspaceIndexEntries();
@@ -365,8 +363,6 @@ export async function createWorkspaceRegistry(deps: CreateWorkspaceRegistryDepen
 			let removalMessage: string | null = null;
 			if (!(await deps.pathIsDirectory(project.repoPath))) {
 				removalMessage = `Project no longer exists on disk and was removed: ${project.repoPath}`;
-			} else if (!deps.hasGitRepository(project.repoPath)) {
-				removalMessage = `Project is not a git repository and was removed: ${project.repoPath}`;
 			}
 
 			if (!removalMessage) {

@@ -350,7 +350,6 @@ export function RuntimeSettingsDialog({
 	liveMcpAuthStatuses = null,
 	onOpenChange,
 	onSaved,
-	_onAccountSwitched,
 	initialSection,
 }: {
 	open: boolean;

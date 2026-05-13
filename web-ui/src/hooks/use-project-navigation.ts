@@ -44,7 +44,6 @@ export interface UseProjectNavigationResult {
 	removingProjectId: string | null;
 	isAddProjectDialogOpen: boolean;
 	setIsAddProjectDialogOpen: (open: boolean) => void;
-	pendingNativeGitInitPath: string | null;
 	currentProjectId: string | null;
 	projects: ReturnType<typeof useRuntimeStateStream>["projects"];
 	workspaceState: ReturnType<typeof useRuntimeStateStream>["workspaceState"];
@@ -76,7 +75,6 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 	const [pendingAddedProjectId, setPendingAddedProjectId] = useState<string | null>(null);
 	const [removingProjectId, setRemovingProjectId] = useState<string | null>(null);
 	const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
-	const [pendingGitInitPath, setPendingGitInitPath] = useState<string | null>(null);
 
 	const {
 		currentProjectId,
@@ -132,13 +130,6 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 			if (picked.ok && picked.path) {
 				const added = await trpcClient.projects.add.mutate({ path: picked.path });
 				if (!added.ok || !added.project) {
-					if (added.requiresGitInitialization) {
-						// Needs git init — open the dialog with the path
-						// pre-filled so the user can confirm initialization.
-						setPendingGitInitPath(picked.path);
-						setIsAddProjectDialogOpen(true);
-						return;
-					}
 					throw new Error(added.error ?? "Could not add project.");
 				}
 				handleAddProjectSuccess(added.project.id);
@@ -258,7 +249,6 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 	const resetProjectNavigationState = useCallback(() => {
 		setRemovingProjectId(null);
 		setIsAddProjectDialogOpen(false);
-		setPendingGitInitPath(null);
 	}, []);
 
 	return {
@@ -267,7 +257,6 @@ export function useProjectNavigation({ onProjectSwitchStart }: UseProjectNavigat
 		removingProjectId,
 		isAddProjectDialogOpen,
 		setIsAddProjectDialogOpen,
-		pendingNativeGitInitPath: pendingGitInitPath,
 		currentProjectId,
 		projects,
 		workspaceState,

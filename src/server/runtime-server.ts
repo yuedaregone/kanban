@@ -57,7 +57,6 @@ export interface CreateRuntimeServerDependencies {
 	runCommand: (command: string, cwd: string) => Promise<RuntimeCommandRunResponse>;
 	resolveProjectInputPath: (inputPath: string, basePath: string) => string;
 	assertPathIsDirectory: (targetPath: string) => Promise<void>;
-	hasGitRepository: (path: string) => boolean;
 	disposeWorkspace: (
 		workspaceId: string,
 		options?: {
@@ -186,7 +185,6 @@ export async function createRuntimeServer(deps: CreateRuntimeServerDependencies)
 				clearActiveWorkspace: deps.workspaceRegistry.clearActiveWorkspace,
 				resolveProjectInputPath: deps.resolveProjectInputPath,
 				assertPathIsDirectory: deps.assertPathIsDirectory,
-				hasGitRepository: deps.hasGitRepository,
 				summarizeProjectTaskCounts: deps.workspaceRegistry.summarizeProjectTaskCounts,
 				createProjectSummary: deps.workspaceRegistry.createProjectSummary,
 				broadcastRuntimeProjectsUpdated: deps.runtimeStateHub.broadcastRuntimeProjectsUpdated,

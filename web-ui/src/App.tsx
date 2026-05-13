@@ -120,7 +120,6 @@ export default function App(): ReactElement {
 		handleRemoveProject,
 		isAddProjectDialogOpen,
 		setIsAddProjectDialogOpen,
-		pendingNativeGitInitPath,
 		resetProjectNavigationState,
 	} = useProjectNavigation({
 		onProjectSwitchStart: handleProjectSwitchStart,
@@ -1097,7 +1096,7 @@ export default function App(): ReactElement {
 						refreshRuntimeProjectConfig();
 						refreshSettingsRuntimeProjectConfig();
 					}}
-					onAccountSwitched={refreshKanbanAccess}
+					onAccountSwitched={undefined}
 				/>
 				<DebugDialog
 					open={isDebugDialogOpen}
@@ -1161,7 +1160,6 @@ export default function App(): ReactElement {
 					onOpenChange={setIsAddProjectDialogOpen}
 					onProjectAdded={handleAddProjectSuccess}
 					currentProjectId={currentProjectId}
-					initialGitInitPath={pendingNativeGitInitPath}
 				/>
 
 				<UpdateNotificationController />
